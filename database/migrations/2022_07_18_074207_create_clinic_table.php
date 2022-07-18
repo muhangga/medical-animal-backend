@@ -15,14 +15,12 @@ class CreateClinicTable extends Migration
     {
         Schema::create('clinic', function (Blueprint $table) {
             $table->id();
-
             $table->string('clinic_name');
             $table->text('address');
             $table->string('phone_number')->nullable();
             $table->string('path_image')->nullable();
             $table->string('latitude');
             $table->string('longitude');
-
             $table->softDeletes();
             $table->timestamps();
         });

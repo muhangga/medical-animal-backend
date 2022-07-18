@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ClinicController;
+use App\Http\Controllers\Api\ClinicController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,3 +20,7 @@ use App\Http\Controllers\ClinicController;
 // });
 
 Route::get('/clinics', [ClinicController::class, 'index']);
+Route::post('/clinic', [ClinicController::class, 'store']);
+Route::get('/clinic/{id}', [ClinicController::class, 'show']);
+Route::put('/clinic/{id}', [ClinicController::class, 'update']);
+Route::delete('/clinic/{id}', [ClinicController::class, 'destroy']);
