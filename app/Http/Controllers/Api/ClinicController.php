@@ -21,6 +21,34 @@ class ClinicController extends Controller
         return ResponseFormatter::success($clinic, 'Data klinik');
     }
 
+    public function nearLocation(Request $request)
+    {
+        $user_lat = $request->latitude;
+        $user_long = $request->longitude;
+
+        // $clinic = ClinicModel::nearby([
+        //     $user_lat,
+        //     $user_long
+        // ], 30, 2)->selectDistance([
+        //     'id',
+        //     'clinic_name',
+        // ], 'distance')->closest()->limit(5)->get();
+
+        $clinic = ClinicModel::selectRaw(" id, clinic_name, address, phone_number, latitude, longitude,
+                ( 6371 * acos( cos( radians(?) ) *
+                cos( radians( latitude ) )
+                * cos( radians( longitude ) - radians(?)
+                ) + sin( radians(?) ) *
+                sin( radians( latitude ) ) )
+                ) AS distance", [$user_lat, $user_long, $user_lat])
+                ->having('distance', '<', 30)
+                ->orderBy('distance')
+                ->limit(7)
+                ->get();
+
+        return ResponseFormatter::success($clinic, 'Data klinik');
+    }
+
     /**
      * Store a newly created resource in storage.
      *

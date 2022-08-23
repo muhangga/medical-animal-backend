@@ -24,3 +24,4 @@ Route::post('/clinic', [ClinicController::class, 'store']);
 Route::get('/clinic/{id}', [ClinicController::class, 'show']);
 Route::put('/clinic/{id}', [ClinicController::class, 'update']);
 Route::delete('/clinic/{id}', [ClinicController::class, 'destroy']);
+Route::GET('/near-clinics', [ClinicController::class, 'nearLocation']);
