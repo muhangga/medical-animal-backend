@@ -43,10 +43,19 @@ class ClinicController extends Controller
                 ) AS distance", [$user_lat, $user_long, $user_lat])
                 ->having('distance', '<', 30)
                 ->orderBy('distance')
-                ->limit(7)
+                ->limit(10)
                 ->get();
 
         return ResponseFormatter::success($clinic, 'Data klinik');
+    }
+
+    public function nearLocationById(Request $request, $id)
+    {
+        $user_lat = $request->latitude;
+        $user_long = $request->longitude;
+
+        $clinic = ClinicModel::find($id);
+        return ResponseFormatter::success($clinic, 'Data klinik By Id');
     }
 
     /**
@@ -155,5 +164,11 @@ class ClinicController extends Controller
                 'error' => $error,
             ], 'Data klinik gagal dihapus', 500);
         }
+    }
+
+    public function search(Request $request)
+    {
+        $clinic = ClinicModel::where('clinic_name', 'like', '%' . $request->keyword . '%')->get();
+        return ResponseFormatter::success($clinic, 'Data klinik');
     }
 }
