@@ -26,14 +26,6 @@ class ClinicController extends Controller
         $user_lat = $request->latitude;
         $user_long = $request->longitude;
 
-        // $clinic = ClinicModel::nearby([
-        //     $user_lat,
-        //     $user_long
-        // ], 30, 2)->selectDistance([
-        //     'id',
-        //     'clinic_name',
-        // ], 'distance')->closest()->limit(5)->get();
-
         $clinic = ClinicModel::selectRaw(" id, clinic_name, address, phone_number, latitude, longitude,
                 ( 6371 * acos( cos( radians(?) ) *
                 cos( radians( latitude ) )
@@ -71,6 +63,7 @@ class ClinicController extends Controller
                 'clinic_name' => ['required', 'max:255'],
                 'address' => ['required', 'max:255'],
                 'phone_number' => ['required', 'max:14', 'unique:clinic'],
+
                 'path_image' => ['required'],
                 'latitude' => ['required'],
                 'longitude' => ['required'],
@@ -166,9 +159,27 @@ class ClinicController extends Controller
         }
     }
 
-    public function search(Request $request)
+    public function searchClinic($clinic)
     {
-        $clinic = ClinicModel::where('clinic_name', 'like', '%' . $request->keyword . '%')->get();
-        return ResponseFormatter::success($clinic, 'Data klinik');
+        $clinic = ClinicModel::where('clinic_name', 'like', '%' . $clinic . '%')->get();
+        if ($clinic) {
+            return ResponseFormatter::success($clinic, 'Data klinik berhasil di temukan');
+        } else {
+            return ResponseFormatter::error([], 'Data klinik tidak ditemukan', 404);
+        }
+    }
+
+    public function feathAllClinic()
+    {
+        // join table clinic and table working days
+        $clinic = ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
+            ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
+            ->get();
+
+            if ($clinic) {
+                return ResponseFormatter::success($clinic, 'Data klinik berhasil di temukan');
+            } else {
+                return ResponseFormatter::error([], 'Data klinik tidak ditemukan', 404);
+            }
     }
 }

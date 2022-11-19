@@ -11,6 +11,11 @@ class ClinicModel extends Model
     use HasFactory, LaravelCoordinate;
     protected $table = 'clinic';
     protected $fillable = [
-        'clinic_name', 'address', 'phone_number', 'path_image', 'latitude', 'longitude'
+        'clinic_name', 'address', 'phone_number', 'rating', 'reviews', 'website', 'latitude', 'longitude'
     ];
+
+    public function workingDays()
+    {
+        return $this->hasMany(WorkingModel::class, 'clinic_id', 'id');
+    }
 }
