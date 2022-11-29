@@ -11,6 +11,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 
 class ClinicController extends Controller
@@ -215,18 +216,36 @@ class ClinicController extends Controller
         }
     }
 
-    public function fetchAllClinicPerPage($page)
+    public function fetchAllClinicPerPage($page, Request $request)
     {
-        $clinic = ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
+        Redis::set('all_clinic', ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
             ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
-            ->paginate($page);
+            ->get());
+
+        $cached = Redis::get('all_clinic');
+
+        if ($cached) {
+            $clinic = json_decode($cached);
+            $perPage = 10;
+            $offset = ($page * $perPage) - $perPage;
+            $itemsForCurrentPage = array_slice($clinic, $offset, $perPage);
+            $items = new LengthAwarePaginator($itemsForCurrentPage, count($clinic), $perPage, $page);
+            return ResponseFormatter::success($items, 'Data klinik berhasil diambil dari redis');
+        } else {
+            $clinic = ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
+                ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
+                ->get();
 
             if ($clinic) {
-                return ResponseFormatter::success($clinic, 'Data klinik berhasil di temukan');
+                $perPage = 10;
+                $offset = ($page * $perPage) - $perPage;
+                $itemsForCurrentPage = array_slice($clinic, $offset, $perPage, true);
+                $items = new LengthAwarePaginator($itemsForCurrentPage, count($clinic), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]);
+                return ResponseFormatter::success($items, 'Data klinik berhasil diambil');
             } else {
                 return ResponseFormatter::error([], 'Data klinik tidak ditemukan', 404);
             }
+        }
+
     }
-
-
 }
