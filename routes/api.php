@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Redis;
 use App\Http\Controllers\Api\ClinicController;
 
 /*
@@ -19,7 +20,7 @@ use App\Http\Controllers\Api\ClinicController;
 //     return $request->user();
 // });
 
-Route::get('/clinics', [ClinicController::class, 'index']);
+// Route::get('/clinics', [ClinicController::class, 'index']);
 Route::post('/clinic', [ClinicController::class, 'store']);
 Route::get('/clinic/{id}', [ClinicController::class, 'show']);
 Route::put('/clinic/{id}', [ClinicController::class, 'update']);
@@ -29,4 +30,14 @@ Route::GET('/near-clinic/{id}', [ClinicController::class, 'nearLocationById']);
 
 // search clinic
 Route::GET('/search-clinic/{name}', [ClinicController::class, 'searchClinic']);
-Route::GET('/all-clinic', [ClinicController::class, 'feathAllClinic']);
+// Route::GET('/all-clinics', [ClinicController::class, 'feathAllClinic']);
+Route::GET('/clinics', [ClinicController::class, 'feathAllClinic']);
+
+Route::get('/', function() {
+    $p = Redis::incr('page');
+    return "Page has been visited $p times";
+});
+
+
+Route::get("users_with_cache", "ClinicController@getClinicRedis");
+Route::get("users_with_query", "ClinicController@getUser");

@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\ClinicModel;
+use App\Models\WorkingModel;
 use Illuminate\Http\Request;
 use App\Helpers\ResponseFormatter;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Validator;
+
 
 class ClinicController extends Controller
 {
@@ -26,19 +31,38 @@ class ClinicController extends Controller
         $user_lat = $request->latitude;
         $user_long = $request->longitude;
 
-        $clinic = ClinicModel::selectRaw(" id, clinic_name, address, phone_number, latitude, longitude,
-                ( 6371 * acos( cos( radians(?) ) *
-                cos( radians( latitude ) )
-                * cos( radians( longitude ) - radians(?)
-                ) + sin( radians(?) ) *
-                sin( radians( latitude ) ) )
+        Redis::set('near_location',  ClinicModel::selectRaw("clinic.id, clinic.clinic_name, clinic.address, clinic.phone_number, clinic.rating, clinic.reviews, clinic.website, clinic.latitude, clinic.longitude, working_days.wednesday, working_days.thursday, working_days.friday, working_days.saturday, working_days.sunday, working_days.monday, working_days.tuesday, ( 6371 * acos( cos( radians(?) ) *
+            cos( radians( latitude ) )
+            * cos( radians( longitude ) - radians(?)
+            ) + sin( radians(?) ) *
+            sin( radians( latitude ) ) )
+            ) AS distance ", [$user_lat, $user_long, $user_lat] )
+            ->join('working_days', 'working_days.clinic_id', '=', 'clinic.id')
+            ->having('distance', '<', 30)
+            ->orderBy('distance')
+            ->limit(10)
+            ->get());
+
+        $near_location = Redis::get('near_location');
+        if ($near_location) {
+            return ResponseFormatter::success(json_decode($near_location), 'Data klinik terdekat');
+        } else {
+            $clinic = ClinicModel::selectRaw("clinic.id, clinic.clinic_name, clinic.address, clinic.phone_number, clinic.rating, clinic.reviews, clinic.website, clinic.latitude, clinic.longitude, working_days.wednesday, working_days.thursday, working_days.friday, working_days.saturday, working_days.sunday, working_days.monday, working_days.tuesday, ( 6371 * acos( cos( radians(?) ) * cos( radians( latitude ) )  * cos( radians( longitude ) - radians(?)) + sin( radians(?) ) *
+                sin( radians( latitude )))
                 ) AS distance", [$user_lat, $user_long, $user_lat])
+                ->join('working_days', 'working_days.clinic_id', '=', 'clinic.id')
                 ->having('distance', '<', 30)
                 ->orderBy('distance')
                 ->limit(10)
                 ->get();
 
-        return ResponseFormatter::success($clinic, 'Data klinik');
+            if ($clinic) {
+                return ResponseFormatter::success($clinic, 'Data klinik terdekat');
+            } else {
+                return ResponseFormatter::error(null, 'Data klinik tidak ditemukan', 404);
+            }
+        }
+
     }
 
     public function nearLocationById(Request $request, $id)
@@ -171,10 +195,31 @@ class ClinicController extends Controller
 
     public function feathAllClinic()
     {
-        // join table clinic and table working days
+        Redis::set('all_clinic', ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
+            ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
+            ->get());
+
+        $cached = Redis::get('all_clinic');
+        if ($cached) {
+            return ResponseFormatter::success(json_decode($cached), 'Data klinik berhasil diambil dari redis');
+        } else {
+             $clinic = ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
+                ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
+                ->get();
+
+            if ($clinic) {
+                return ResponseFormatter::success($clinic, 'Data klinik berhasil diambil');
+            } else {
+                return ResponseFormatter::error([], 'Data klinik tidak ditemukan', 404);
+            }
+        }
+    }
+
+    public function fetchAllClinicPerPage($page)
+    {
         $clinic = ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
             ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
-            ->get();
+            ->paginate($page);
 
             if ($clinic) {
                 return ResponseFormatter::success($clinic, 'Data klinik berhasil di temukan');
@@ -182,4 +227,6 @@ class ClinicController extends Controller
                 return ResponseFormatter::error([], 'Data klinik tidak ditemukan', 404);
             }
     }
+
+
 }
