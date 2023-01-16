@@ -162,7 +162,7 @@ return [
         Illuminate\Validation\ValidationServiceProvider::class,
         Illuminate\View\ViewServiceProvider::class,
         Stevebauman\Location\LocationServiceProvider::class,
-        Barryvdh\Debugbar\ServiceProvider::class,
+        Jenssegers\Agent\AgentServiceProvider::class,
 
         /*
          * Package Service Providers...
@@ -230,6 +230,7 @@ return [
         'View' => Illuminate\Support\Facades\View::class,
         'Location' => Stevebauman\Location\Facades\Location::class,
         'Debugbar' => Barryvdh\Debugbar\Facade::class,
+        'Agent' => Jenssegers\Agent\Facades\Agent::class,
     ],
 
 ];

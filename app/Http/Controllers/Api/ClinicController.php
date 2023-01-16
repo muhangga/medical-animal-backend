@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\ClinicModel;
+use Jenssegers\Agent\Agent;
 use App\Models\WorkingModel;
 use Illuminate\Http\Request;
+use App\Models\FacilityModel;
 use App\Helpers\ResponseFormatter;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Helpers\UserSystemInfoHelper;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Validator;
@@ -32,38 +35,53 @@ class ClinicController extends Controller
         $user_lat = $request->latitude;
         $user_long = $request->longitude;
 
-        Redis::set('near_location',  ClinicModel::selectRaw("clinic.id, clinic.clinic_name, clinic.address, clinic.phone_number, clinic.rating, clinic.reviews, clinic.website, clinic.latitude, clinic.longitude, working_days.wednesday, working_days.thursday, working_days.friday, working_days.saturday, working_days.sunday, working_days.monday, working_days.tuesday, ( 6371 * acos( cos( radians(?) ) *
-            cos( radians( latitude ) )
-            * cos( radians( longitude ) - radians(?)
-            ) + sin( radians(?) ) *
-            sin( radians( latitude ) ) )
-            ) AS distance ", [$user_lat, $user_long, $user_lat] )
-            ->join('working_days', 'working_days.clinic_id', '=', 'clinic.id')
-            ->having('distance', '<', 30)
-            ->orderBy('distance')
-            ->limit(10)
-            ->get());
-
         $near_location = Redis::get('near_location');
-        if ($near_location) {
-            return ResponseFormatter::success(json_decode($near_location), 'Data klinik terdekat');
-        } else {
-            $clinic = ClinicModel::selectRaw("clinic.id, clinic.clinic_name, clinic.address, clinic.phone_number, clinic.rating, clinic.reviews, clinic.website, clinic.latitude, clinic.longitude, working_days.wednesday, working_days.thursday, working_days.friday, working_days.saturday, working_days.sunday, working_days.monday, working_days.tuesday, ( 6371 * acos( cos( radians(?) ) * cos( radians( latitude ) )  * cos( radians( longitude ) - radians(?)) + sin( radians(?) ) *
-                sin( radians( latitude )))
-                ) AS distance", [$user_lat, $user_long, $user_lat])
+        if (!isset($near_location)) {
+            $clinic = ClinicModel::selectRaw("clinic.id, clinic.clinic_name, clinic.address, clinic.phone_number, clinic.rating, clinic.reviews, clinic.website, clinic.latitude, clinic.longitude, working_days.wednesday, working_days.thursday, working_days.friday, working_days.saturday, working_days.sunday, working_days.monday, working_days.tuesday, facility.konsultasi, facility.layanan_medis, facility.penginapan, facility.grooming, ( 6371 * acos( cos( radians(?) ) *
+                cos( radians( latitude ) )
+                * cos( radians( longitude ) - radians(?)
+                ) + sin( radians(?) ) *
+                sin( radians( latitude ) ) )
+                ) AS distance ", [$user_lat, $user_long, $user_lat] )
                 ->join('working_days', 'working_days.clinic_id', '=', 'clinic.id')
+                ->join('facility', 'facility.clinic_id', '=', 'clinic.id')
                 ->having('distance', '<', 30)
                 ->orderBy('distance')
                 ->limit(10)
                 ->get();
 
+            Redis::set('near_location', $clinic);
+
             if ($clinic) {
+                $save = Redis::expire('near_location', 60 * 1);
+                $device = UserSystemInfoHelper::get_device() ?? 'unknown';
+
+                foreach($clinic as $data) {
+                    $saveToTable = DB::table('user_request')->insert([
+                        'clinic_name' => $data->clinic_name,
+                        'latitude' => $user_lat,
+                        'longitude' => $user_long,
+                        'latitude_clinic' => $data->latitude,
+                        'longitude_clinic' => $data->longitude,
+                        'type_hp' => $device,
+                        "distance" => $data->distance,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+
+                    if ($saveToTable) {
+                        print_r("data berhasil disimpan");
+                    } else {
+                        print_r("data berhasil disimpan");
+                    }
+                }
                 return ResponseFormatter::success($clinic, 'Data klinik terdekat');
             } else {
                 return ResponseFormatter::error(null, 'Data klinik tidak ditemukan', 404);
             }
+        } else {
+            return ResponseFormatter::success(json_decode($near_location), 'Data klinik terdekat dari redis');
         }
-
     }
 
     public function nearLocationById(Request $request, $id)
@@ -194,54 +212,88 @@ class ClinicController extends Controller
         }
     }
 
-    public function feathAllClinic()
+    public function fecthAllClinic()
     {
-        Redis::set('all_clinic', ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
-            ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
-            ->get());
-
         $cached = Redis::get('all_clinic');
-        if ($cached) {
-            return ResponseFormatter::success(json_decode($cached), 'Data klinik berhasil diambil dari redis');
-        } else {
-             $clinic = ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
-                ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
-                ->get();
+
+        if (!isset($cached)) {
+            $clinic = DB::table('clinic')
+            ->join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
+            ->join('facility', 'clinic.id', '=', 'facility.clinic_id')
+            ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday', 'facility.konsultasi', 'facility.layanan_medis', 'facility.penginapan', 'facility.grooming')
+            ->get();
+
+            Redis::set('all_clinic', $clinic);
 
             if ($clinic) {
-                return ResponseFormatter::success($clinic, 'Data klinik berhasil diambil');
+            //     $data = [];
+            //     foreach ($clinic as $key => $value) {
+            //         $data[] = [
+            //             'clinic_name' => $value->clinic_name,
+            //             'latitude' => $value->latitude,
+            //             'longitude' => $value->longitude,
+            //             'type_hp' => "xiaomi",
+            //             'distance' => 0.5,
+            //         ];
+            //     }
+
+            //     $save = DB::table('user_request')->insert([
+            //         'clinic_name' => $data['clinic_name'],
+            //         'latitude' => $data['latitude'],
+            //         'longitude' => $data['longitude'],
+            //         'type_hp' => $data['type_hp'],
+            //         'distance' => $data['distance'],
+            //     ]);
+
+            //     if ($save) {
+            //         print_r('data berhasil masuk');
+            //     } else {
+            //         print_r('data gagal masuk');
+            //     }
+
+                // $insertToUserRequestTable = UserRequestModel::create([
+                //     'request' => json_encode($data),
+                // ]);
+
+                // dd($insertToUserRequestTable); // ini untuk cek apakah data berhasil masuk ke table user_request
+
+                return ResponseFormatter::success($data, 'Data klinik berhasil diambil');
             } else {
                 return ResponseFormatter::error([], 'Data klinik tidak ditemukan', 404);
             }
+
+        } else {
+            return ResponseFormatter::success(json_decode($cached), 'Data klinik berhasil diambil dari redis');
         }
     }
 
-    public function fetchAllClinicPerPage($page, Request $request)
+    // public function fecthUserRequest()
+
+    public function fetchClinicPerPage($page, Request $request)
     {
-        Redis::set('all_clinic', ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
-            ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
-            ->get());
+        $page = $request->page;
+        $cached = Redis::get('clinic_pagination');
 
-        $cached = Redis::get('all_clinic');
-
-        if ($cached) {
+        if (isset($cached)) {
             $clinic = json_decode($cached);
             $perPage = 10;
             $offset = ($page * $perPage) - $perPage;
             $itemsForCurrentPage = array_slice($clinic, $offset, $perPage);
             $items = new LengthAwarePaginator($itemsForCurrentPage, count($clinic), $perPage, $page);
-            return ResponseFormatter::success($items, 'Data klinik berhasil diambil dari redis');
+            return response()->json($items);
         } else {
             $clinic = ClinicModel::join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
                 ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday')
                 ->get();
+            Redis::set('clinic_pagination', $clinic);
 
-            if ($clinic) {
+            if ($clinic != null) {
                 $perPage = 10;
                 $offset = ($page * $perPage) - $perPage;
                 $itemsForCurrentPage = array_slice($clinic, $offset, $perPage, true);
-                $items = new LengthAwarePaginator($itemsForCurrentPage, count($clinic), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]);
-                return ResponseFormatter::success($items, 'Data klinik berhasil diambil');
+                $items = new LengthAwarePaginator($itemsForCurrentPage, count($clinic), $perPage, $page);
+                return response()->json($items);
+
             } else {
                 return ResponseFormatter::error([], 'Data klinik tidak ditemukan', 404);
             }

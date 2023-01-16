@@ -31,8 +31,8 @@ Route::GET('/near-clinic/{id}', [ClinicController::class, 'nearLocationById']);
 // search clinic
 Route::GET('/search-clinic/{name}', [ClinicController::class, 'searchClinic']);
 // Route::GET('/all-clinics', [ClinicController::class, 'feathAllClinic']);
-Route::GET('/clinics', [ClinicController::class, 'feathAllClinic']);
-Route::GET('/clinics/{page}', [ClinicController::class, 'fetchAllClinicPerPage']);
+Route::GET('/clinics', [ClinicController::class, 'fecthAllClinic']);
+Route::GET('/clinics/{page}', [ClinicController::class, 'fetchClinicPerPage']);
 
 Route::get('/', function() {
     $p = Redis::incr('page');
