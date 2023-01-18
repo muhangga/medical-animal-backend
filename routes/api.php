@@ -26,13 +26,16 @@ Route::get('/clinic/{id}', [ClinicController::class, 'show']);
 Route::put('/clinic/{id}', [ClinicController::class, 'update']);
 Route::delete('/clinic/{id}', [ClinicController::class, 'destroy']);
 Route::GET('/near-clinics', [ClinicController::class, 'nearLocation']);
+Route::POST('/near-clinics', [ClinicController::class, 'nearLocation']);
+// Route::POST('/user-request', [ClinicController::class, 'nearLocation']);
+// Route::match(['GET', 'POST'], '/near-clinics', [ClinicController::class, 'nearLocation']);
 Route::GET('/near-clinic/{id}', [ClinicController::class, 'nearLocationById']);
 
 // search clinic
 Route::GET('/search-clinic/{name}', [ClinicController::class, 'searchClinic']);
-// Route::GET('/all-clinics', [ClinicController::class, 'feathAllClinic']);
 Route::GET('/clinics', [ClinicController::class, 'fecthAllClinic']);
 Route::GET('/clinics/{page}', [ClinicController::class, 'fetchClinicPerPage']);
+Route::POST('/user-request', [ClinicController::class, 'storeUserRequest']);
 
 Route::get('/', function() {
     $p = Redis::incr('page');

@@ -36,6 +36,11 @@ class ClinicController extends Controller
         $user_long = $request->longitude;
 
         $near_location = Redis::get('near_location');
+
+        if ($user_lat == null || $user_long == null) {
+            return ResponseFormatter::error(null, 'Lokasi tidak ditemukan', 404);
+        }
+
         if (!isset($near_location)) {
             $clinic = ClinicModel::selectRaw("clinic.id, clinic.clinic_name, clinic.address, clinic.phone_number, clinic.rating, clinic.reviews, clinic.website, clinic.latitude, clinic.longitude, working_days.wednesday, working_days.thursday, working_days.friday, working_days.saturday, working_days.sunday, working_days.monday, working_days.tuesday, facility.konsultasi, facility.layanan_medis, facility.penginapan, facility.grooming, ( 6371 * acos( cos( radians(?) ) *
                 cos( radians( latitude ) )
@@ -53,34 +58,78 @@ class ClinicController extends Controller
             Redis::set('near_location', $clinic);
 
             if ($clinic) {
-                $save = Redis::expire('near_location', 60 * 1);
-                $device = UserSystemInfoHelper::get_device() ?? 'unknown';
+                switch($request->method()) {
+                    case 'GET':
+                            Redis::expire('near_location', 60 *1);
+                            return ResponseFormatter::success($clinic, 'Data klinik terdekat');
+                        break;
+                    case 'POST':
+                        // delete the cache
+                        Redis::del('near_location');
+                        $device = UserSystemInfoHelper::get_device() ?? 'unknown';
+                        $agent = new Agent();
+                        $agent->setUserAgent($device);
 
-                foreach($clinic as $data) {
-                    $saveToTable = DB::table('user_request')->insert([
-                        'clinic_name' => $data->clinic_name,
-                        'latitude' => $user_lat,
-                        'longitude' => $user_long,
-                        'latitude_clinic' => $data->latitude,
-                        'longitude_clinic' => $data->longitude,
-                        'type_hp' => $device,
-                        "distance" => $data->distance,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ]);
+                        $data = array();
 
-                    if ($saveToTable) {
-                        print_r("data berhasil disimpan");
-                    } else {
-                        print_r("data berhasil disimpan");
-                    }
+                        for ($i = 0; $i < count($clinic); $i++) {
+                            $data[] = array(
+                                'clinic_name' => $clinic[$i]['clinic_name'],
+                                'latitude' => $user_lat,
+                                'longitude' => $user_long,
+                                'latitude_clinic' => $clinic[$i]['latitude'],
+                                'longitude_clinic' => $clinic[$i]['longitude'],
+                                'distance' => $clinic[$i]['distance'],
+                                'type_hp' => $device,
+                                'created_at' => now(),
+                                'updated_at' => now()
+                            );
+                        }
+                        $save = DB::table('user_request')->insert($data);
+
+                        if ($save) {
+                            return ResponseFormatter::success(true, 'Data klinik terdekat berhasil ditambahkan');
+                        } else {
+                            return ResponseFormatter::error(null, 'Data gagal disimpan', 500);
+                        }
+                        break;
+                    default:
+                        return ResponseFormatter::error(null, 'Data tidak ditemukan', 404);
+                        break;
                 }
-                return ResponseFormatter::success($clinic, 'Data klinik terdekat');
-            } else {
-                return ResponseFormatter::error(null, 'Data klinik tidak ditemukan', 404);
             }
+
         } else {
             return ResponseFormatter::success(json_decode($near_location), 'Data klinik terdekat dari redis');
+        }
+    }
+
+    public function storeUserRequest(Request $request)
+    {
+        $agent = new Agent();
+        $device = UserSystemInfoHelper::get_device() ?? 'unknown';
+        $agent->setUserAgent($device);
+
+        $data = array(
+            'clinic_name' => $request->clinic_name,
+            'latitude' => $request->latitude,
+            'longitude' => $request->longitude,
+            'latitude_clinic' => $request->latitude_clinic,
+            'longitude_clinic' => $request->longitude_clinic,
+            'type_hp' => $device,
+            "distance" => $request->distance,
+            'created_at' => now(),
+            'updated_at' => now()
+        );
+
+        foreach($data as $value) {
+            $saveToTable = DB::table('user_request')->insert($data);
+
+            if ($saveToTable) {
+                return ResponseFormatter::success($data, 'Data berhasil disimpan');
+            } else {
+                return ResponseFormatter::error(null, 'Data gagal disimpan', 500);
+            }
         }
     }
 
@@ -226,38 +275,8 @@ class ClinicController extends Controller
             Redis::set('all_clinic', $clinic);
 
             if ($clinic) {
-            //     $data = [];
-            //     foreach ($clinic as $key => $value) {
-            //         $data[] = [
-            //             'clinic_name' => $value->clinic_name,
-            //             'latitude' => $value->latitude,
-            //             'longitude' => $value->longitude,
-            //             'type_hp' => "xiaomi",
-            //             'distance' => 0.5,
-            //         ];
-            //     }
-
-            //     $save = DB::table('user_request')->insert([
-            //         'clinic_name' => $data['clinic_name'],
-            //         'latitude' => $data['latitude'],
-            //         'longitude' => $data['longitude'],
-            //         'type_hp' => $data['type_hp'],
-            //         'distance' => $data['distance'],
-            //     ]);
-
-            //     if ($save) {
-            //         print_r('data berhasil masuk');
-            //     } else {
-            //         print_r('data gagal masuk');
-            //     }
-
-                // $insertToUserRequestTable = UserRequestModel::create([
-                //     'request' => json_encode($data),
-                // ]);
-
-                // dd($insertToUserRequestTable); // ini untuk cek apakah data berhasil masuk ke table user_request
-
-                return ResponseFormatter::success($data, 'Data klinik berhasil diambil');
+                Redis::expire('all_clinic', 60);
+                return ResponseFormatter::success($clinic, 'Data klinik berhasil diambil');
             } else {
                 return ResponseFormatter::error([], 'Data klinik tidak ditemukan', 404);
             }
@@ -266,8 +285,6 @@ class ClinicController extends Controller
             return ResponseFormatter::success(json_decode($cached), 'Data klinik berhasil diambil dari redis');
         }
     }
-
-    // public function fecthUserRequest()
 
     public function fetchClinicPerPage($page, Request $request)
     {
