@@ -27,8 +27,6 @@ Route::put('/clinic/{id}', [ClinicController::class, 'update']);
 Route::delete('/clinic/{id}', [ClinicController::class, 'destroy']);
 Route::GET('/near-clinics', [ClinicController::class, 'nearLocation']);
 Route::POST('/near-clinics', [ClinicController::class, 'nearLocation']);
-// Route::POST('/user-request', [ClinicController::class, 'nearLocation']);
-// Route::match(['GET', 'POST'], '/near-clinics', [ClinicController::class, 'nearLocation']);
 Route::GET('/near-clinic/{id}', [ClinicController::class, 'nearLocationById']);
 
 // search clinic

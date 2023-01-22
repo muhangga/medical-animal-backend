@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use Carbon\Carbon;
 use App\Models\ClinicModel;
 use Jenssegers\Agent\Agent;
 use App\Models\WorkingModel;
@@ -26,7 +27,7 @@ class ClinicController extends Controller
      */
     public function index()
     {
-        $clinic = ClinicModel::all();
+        // $clinic = ClinicModel::all();
         return ResponseFormatter::success($clinic, 'Data klinik');
     }
 
@@ -106,30 +107,27 @@ class ClinicController extends Controller
 
     public function storeUserRequest(Request $request)
     {
-        $agent = new Agent();
-        $device = UserSystemInfoHelper::get_device() ?? 'unknown';
-        $agent->setUserAgent($device);
+        $date = Carbon::now()->setTimezone('Asia/Jakarta');
+        $date = Carbon::now()->formatLocalized('%A %d %B %Y');
 
         $data = array(
-            'clinic_name' => $request->clinic_name,
-            'latitude' => $request->latitude,
-            'longitude' => $request->longitude,
-            'latitude_clinic' => $request->latitude_clinic,
-            'longitude_clinic' => $request->longitude_clinic,
-            'type_hp' => $device,
-            "distance" => $request->distance,
-            'created_at' => now(),
-            'updated_at' => now()
+            "latitude" => $request->latitude,
+            "longitude" => $request->longitude,
+            "device" => $request->device,
+            "address" => $request->address,
+            "created_at" => $date,
+            "updated_at" => now()
         );
 
-        foreach($data as $value) {
-            $saveToTable = DB::table('user_request')->insert($data);
+        if ($request->latitude == null || $request->longitude == null) {
+            return ResponseFormatter::error(null, 'Lokasi tidak ditemukan', 404);
+        }
+        $save = DB::table('user_request')->insert($data);
 
-            if ($saveToTable) {
-                return ResponseFormatter::success($data, 'Data berhasil disimpan');
-            } else {
-                return ResponseFormatter::error(null, 'Data gagal disimpan', 500);
-            }
+        if ($save) {
+            return ResponseFormatter::success(true, 'Data berhasil ditambahkan');
+        } else {
+            return ResponseFormatter::error(null, 'Data gagal disimpan', 500);
         }
     }
 
@@ -261,16 +259,20 @@ class ClinicController extends Controller
         }
     }
 
-    public function fecthAllClinic()
+    public function fecthAllClinic(Request $request)
     {
+
+        $usetLat = $request->latitude;
+        $userLong = $request->longitude;
+
         $cached = Redis::get('all_clinic');
 
         if (!isset($cached)) {
-            $clinic = DB::table('clinic')
-            ->join('working_days', 'clinic.id', '=', 'working_days.clinic_id')
-            ->join('facility', 'clinic.id', '=', 'facility.clinic_id')
-            ->select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday', 'facility.konsultasi', 'facility.layanan_medis', 'facility.penginapan', 'facility.grooming')
-            ->get();
+            // get all clinic join with working day and facility and add distance
+            $clinic =  ClinicModel::select('clinic.*', 'working_days.wednesday', 'working_days.thursday', 'working_days.friday', 'working_days.saturday', 'working_days.sunday', 'working_days.monday', 'working_days.tuesday', 'facility.konsultasi', 'facility.layanan_medis', 'facility.penginapan', 'facility.grooming', DB::raw("6371 * acos(cos(radians($usetLat)) * cos(radians(latitude)) * cos(radians(longitude) - radians($userLong)) + sin(radians($usetLat)) * sin(radians(latitude))) AS distance"))
+                ->join('working_days', 'working_days.clinic_id', '=', 'clinic.id')
+                ->join('facility', 'facility.clinic_id', '=', 'clinic.id')
+                ->get();
 
             Redis::set('all_clinic', $clinic);
 
