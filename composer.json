@@ -16,7 +16,7 @@
         "jenssegers/agent": "^2.6",
         "laravel/framework": "^8.0",
         "laravel/tinker": "^2.0",
-        "predis/predis": "^2.0",
+        "predis/predis": "^2.1",
         "stevebauman/location": "^6.5"
     },
     "require-dev": {

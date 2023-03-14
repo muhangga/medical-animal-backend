@@ -99,7 +99,6 @@ class ClinicController extends Controller
                         break;
                 }
             }
-
         } else {
             return ResponseFormatter::success(json_decode($near_location), 'Data klinik terdekat dari redis');
         }
@@ -283,7 +282,8 @@ class ClinicController extends Controller
                 return ResponseFormatter::error([], 'Data klinik tidak ditemukan', 404);
             }
 
-        } else {
+        }
+        else {
             return ResponseFormatter::success(json_decode($cached), 'Data klinik berhasil diambil dari redis');
         }
     }
